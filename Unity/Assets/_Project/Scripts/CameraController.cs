@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
+using _Project.Ray_Tracer.Scripts;
 
 namespace _Project.Scripts
 {
@@ -12,6 +13,7 @@ namespace _Project.Scripts
         [SerializeField]
         private RectTransform inputBlocker;
         public bool InputBlockerHovered { get; set; }
+        public RTSceneManager rTSceneManager;
     
         public Transform Target;
         public float InitialDistance = 5.0f;
@@ -31,6 +33,7 @@ namespace _Project.Scripts
         private bool orbiting = false;
         private bool panning = false;
         private bool mode = false;
+        private bool zoomMobile = false;
 
         void Start() { Initialize(); }
 
@@ -90,12 +93,17 @@ namespace _Project.Scripts
         {
             float xDistance = 0.0f;
             float yDistance = 0.0f;
-            
+
             // Grab the rotation of the camera so we can move in a pseudo local XY space.
             if (Input.GetMouseButton(2))
             {
                 xDistance = -Input.GetAxis("Mouse X") * 0.01f;
                 yDistance = -Input.GetAxis("Mouse Y") * 0.01f;
+            } 
+            else if (Input.touchCount == 1)
+            {
+                xDistance = -Input.touches[0].deltaPosition.x * 0.0005f;
+                yDistance = -Input.touches[0].deltaPosition.y * 0.0005f;
             }
 
             // And we pan with the arrow keys
@@ -116,7 +124,7 @@ namespace _Project.Scripts
 
             if (!(Input.GetMouseButton(2) ||
                   Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.RightArrow) ||
-                  Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow)))
+                  Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow) || Input.touchCount == 1))
             {
                 panning = false;
                 DisableBlocker();
@@ -130,7 +138,13 @@ namespace _Project.Scripts
                 xDegrees += Input.GetAxis("Mouse X") * OrbitSpeed;
                 yDegrees -= Input.GetAxis("Mouse Y") * OrbitSpeed;
             }
-            
+            else if (Input.touchCount == 1)
+            {
+                xDegrees += Input.touches[0].deltaPosition.x * 0.0005f;
+                yDegrees -= Input.touches[0].deltaPosition.y * 0.0005f;
+            }
+
+
             if (Input.GetKey(KeyCode.LeftArrow))
                 xDegrees += Time.deltaTime * 20.0f * OrbitSpeed;
             if (Input.GetKey(KeyCode.RightArrow))
@@ -153,23 +167,25 @@ namespace _Project.Scripts
 
             if (!(Input.GetMouseButton(0) ||
                   Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.RightArrow) ||
-                  Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow)))
+                  Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow) || Input.touchCount == 1))
             {
                 orbiting = false;
                 DisableBlocker();
             }
-
+            
         }
     
         private void OnlyOneInputPicker()
         {
+            bool inUI = EventSystem.current.IsPointerOverGameObject();
+            bool inUIMobile = EventSystem.current.IsPointerOverGameObject(Input.touchCount > 0 ? Input.touches[0].fingerId : -1);
 
             if (Input.GetKeyDown(KeyCode.LeftControl))
             {
                 inputBlocker.gameObject.SetActive(true);
                 mode = true;
             }
-        
+
             // If the user is zooming, orbiting or panning we calculate their position
 
             if (zoom)
@@ -181,6 +197,45 @@ namespace _Project.Scripts
                     zoom = false;
                     DisableBlocker();
                 }
+
+                return;
+            }
+
+            // zoom for mobile
+            if (Input.touchCount == 2 && (
+                (Input.touches[0].deltaPosition.y > 0 && Input.touches[1].deltaPosition.y < 0) ||
+                (Input.touches[0].deltaPosition.y < 0 && Input.touches[1].deltaPosition.y > 0) ||
+                (Input.touches[0].deltaPosition.x > 0 && Input.touches[1].deltaPosition.x < 0) ||
+                (Input.touches[0].deltaPosition.x < 0 && Input.touches[1].deltaPosition.x > 0)))
+            {
+                if ((inUI || inUIMobile) && !InputBlockerHovered)
+                    return;
+                float xTouch1;
+                float xTouch2;
+                float yTouch1;
+                float yTouch2;
+                if (Input.touches[0].position.y > Input.touches[1].position.y)
+                {
+                    yTouch1 = Input.touches[0].deltaPosition.y;
+                    yTouch2 = Input.touches[1].deltaPosition.y;
+                }
+                else
+                {
+                    yTouch1 = Input.touches[1].deltaPosition.y;
+                    yTouch2 = Input.touches[0].deltaPosition.y;
+                }
+                if (Input.touches[0].position.x > Input.touches[1].position.x)
+                {
+                    xTouch1 = Input.touches[0].deltaPosition.x;
+                    xTouch2 = Input.touches[1].deltaPosition.x;
+                }
+                else
+                {
+                    xTouch1 = Input.touches[1].deltaPosition.x;
+                    xTouch2 = Input.touches[0].deltaPosition.x;
+                }
+
+                distance -= ((yTouch1 - yTouch2) + (xTouch1 - xTouch2)) / 1.5f * ZoomSpeed * 0.0008f * Mathf.Abs(distance);
 
                 return;
             }
@@ -197,6 +252,10 @@ namespace _Project.Scripts
                 return;
             }
 
+            if ((inUI || inUIMobile) && !InputBlockerHovered)
+                return;
+
+
             if (mode && !Input.GetKey(KeyCode.LeftControl))
             {
                 inputBlocker.gameObject.SetActive(false);
@@ -205,11 +264,8 @@ namespace _Project.Scripts
                 mode = false;
             }
 
-            if (EventSystem.current.IsPointerOverGameObject() && !InputBlockerHovered)
-                return;
-
             // The inputs are below this line
-        
+
             // If scrollWheel is used change zoom. This one is not exclusive.
             distance -= Input.GetAxis("Mouse ScrollWheel") * ZoomSpeed * Mathf.Abs(distance);
 
@@ -235,11 +291,27 @@ namespace _Project.Scripts
                     return;
                 }
             }
-        
-            // If the middle mouse is pressed, or the arrow keys we activate panning.
+
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                if (Input.GetTouch(i).phase == TouchPhase.Began)
+                {
+                    if (Input.GetTouch(i).tapCount == 2)
+                    {
+                        orbiting = true;
+                        return;
+                    }
+                }
+            }
+
+            // If an object is selected, block user from panning/orbiting
+            if (!rTSceneManager.selection.Empty)
+                return;
+
+            // If the middle mouse is pressed, the arrow keys are pressed, or the device is controlled with one touch we activate panning.
             if (Input.GetMouseButtonDown(2) || Input.GetKeyDown(KeyCode.LeftArrow) ||
                 Input.GetKeyDown(KeyCode.RightArrow) ||
-                Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow))
+                Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.DownArrow) || Input.touchCount == 1) 
             {
                 inputBlocker.gameObject.SetActive(true);
                 panning = true;

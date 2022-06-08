@@ -58,7 +58,7 @@ namespace _Project.Ray_Tracer.Scripts
         [SerializeField] private bool deleteAllowed = false;
 
         private static RTSceneManager instance = null;
-        private Selection selection = new Selection();
+        public Selection selection = new Selection();
         private Transform previousTransform;
 
         private HandleSpace handleSpace = HandleSpace.WORLD;
@@ -78,7 +78,7 @@ namespace _Project.Ray_Tracer.Scripts
         /// A simple data class that represents a selected object. The object may be an <see cref="RTCamera"/>, an
         /// <see cref="RTLight"/> or an <see cref="RTMesh"/>.
         /// </summary>
-        class Selection
+        public class Selection
         {
             /// <summary>
             /// The type of the selected object. May be <see cref="RTCamera"/>, <see cref="RTLight"/> or
@@ -475,7 +475,8 @@ namespace _Project.Ray_Tracer.Scripts
         {
             // Check if we clicked on anything (unless we are hovered over or in UI, or orbiting the camera).
             bool inUI = EventSystem.current.IsPointerOverGameObject();
-            if (Input.GetMouseButtonDown(0) && !inUI)
+            bool inUIMobile = EventSystem.current.IsPointerOverGameObject(Input.touchCount > 0 ? Input.touches[0].fingerId : -1);
+            if (Input.GetMouseButtonDown(0) && !inUI && !inUIMobile)
                 OnLeftClick();
             
             // Handle transformation type hot keys.
