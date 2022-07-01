@@ -79,12 +79,12 @@ namespace _Project.Ray_Tracer.Scripts
             Sphere = 0,
             Cube = 5000,
             Cylinder = 6000,
-            Barrel = 6500,
-            Capsule = 7000,
-            Prism = 8000,
-            Goat = 9000,
-            Wineglass = 10000,
-            Light = 11000
+            Barrel = 7000,
+            Capsule = 8000,
+            Prism = 9000,
+            Goat = 10000,
+            Wineglass = 11000,
+            Light = 11500
         }
 
         /// <summary>
